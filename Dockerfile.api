@@ -2,8 +2,23 @@ FROM python:3.12.9-slim
 
 WORKDIR /app
 
+# ppc64le: numpy/scipy/scikit-learn/pandas não têm wheels para esta arquitetura no
+# PyPI, então o pip compila do código-fonte. É preciso o toolchain (gcc/g++/gfortran)
+# e BLAS/LAPACK para o build do scipy/numpy. libssl-dev/zlib1g-dev são para o grpcio
+# usar o OpenSSL/zlib do sistema (o BoringSSL embutido não compila em ppc64le).
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        gcc g++ gfortran pkg-config \
+        libopenblas-dev liblapack-dev \
+        libssl-dev zlib1g-dev \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# ppc64le: força o grpcio a usar OpenSSL/zlib do sistema em vez do BoringSSL embutido
+# (BoringSSL falha com "Unknown target CPU" em ppc64le). Como não há wheel ppc64le, o
+# grpcio é compilado do fonte (demorado) — paraleliza usando todos os núcleos.
+RUN GRPC_PYTHON_BUILD_SYSTEM_OPENSSL=1 GRPC_PYTHON_BUILD_SYSTEM_ZLIB=1 \
+    GRPC_PYTHON_BUILD_EXT_COMPILER_JOBS=$(nproc) \
+    pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
