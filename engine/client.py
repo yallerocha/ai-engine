@@ -185,3 +185,82 @@ class OpenRouterClient(Client):
             api_key=api_key, base_url="https://openrouter.ai/api/v1", **kwargs
         )
         self._initialized = True
+
+
+class OllamaClient(Client):
+    """
+    Singleton client for Ollama local models.
+
+    Ollama exposes an OpenAI-compatible API at /v1, so we reuse the
+    base Client which wraps the openai SDK.
+    """
+
+    _instance = None
+    _lock = Lock()
+
+    def __new__(cls):
+        """
+        Returns a singleton instance of the OllamaClient.
+        """
+        if cls._instance is None:
+            with cls._lock:
+                if cls._instance is None:
+                    cls._instance = super(OllamaClient, cls).__new__(cls)
+                    cls._instance._initialized = False
+        return cls._instance
+
+    def __init__(self, **kwargs):
+        """
+        Initializes the OllamaClient.
+
+        Uses OLLAMA_HOST env var (default: http://ollama:11434) to connect
+        to the Ollama server's OpenAI-compatible endpoint.
+        """
+        if self._initialized:
+            return
+
+        ollama_host = os.getenv("OLLAMA_HOST", "http://127.0.0.1:11434")
+        # Ensure no trailing slash before appending /v1
+        base_url = f"{ollama_host.rstrip('/')}/v1"
+
+        # Ollama doesn't require a real API key, but the openai SDK demands one
+        super().__init__(
+            api_key="ollama",  # dummy key — Ollama ignores it
+            base_url=base_url,
+            **kwargs,
+        )
+        self._initialized = True
+
+
+def get_client(provider: str = None) -> Client:
+    """
+    Factory function that returns the appropriate Client singleton based
+    on the configured (or explicitly requested) provider.
+
+    Args:
+        provider: One of 'ollama', 'openrouter', 'openai'.
+                  When None, reads from config / env.
+
+    Returns:
+        A Client instance ready to call .chat() / .chat_structured().
+    """
+    if provider is None:
+        # Try to infer from environment — prefer Ollama when OLLAMA_HOST is set
+        if os.getenv("OLLAMA_HOST"):
+            provider = "ollama"
+        elif os.getenv("OPENROUTER_API_KEY"):
+            provider = "openrouter"
+        else:
+            provider = "ollama"  # default for local / Power9 setups
+
+    provider = provider.lower()
+
+    if provider == "ollama":
+        return OllamaClient()
+    elif provider == "openrouter":
+        return OpenRouterClient()
+    elif provider == "openai":
+        return OpenAIClient()
+    else:
+        # Fallback: treat unknown providers as Ollama (local-first philosophy)
+        return OllamaClient()

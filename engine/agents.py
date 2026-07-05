@@ -7,18 +7,18 @@ from .ai_config import get_model_config, get_prompt, PROMPTS, build_system_promp
 from .util import get_logger, load_config, log_token_usage
 
 from .langgraph_agents.graph.tool_system_graph import create_tool_system_migration_graph
-from .client import OpenRouterClient
+from .client import OpenRouterClient, OllamaClient, get_client
 
 logger = get_logger("agents")
 
-# Initialize OpenRouter client
+# Initialize AI client (Ollama, OpenRouter, etc.)
 try:
-    openrouter_client = OpenRouterClient()
-    HAS_OPENROUTER = True
+    ai_client = get_client()
+    HAS_CLIENT = True
 except Exception as e:
-    logger.warning(f"Failed to initialize OpenRouterClient: {e}")
-    openrouter_client = None
-    HAS_OPENROUTER = False
+    logger.warning(f"Failed to initialize AI client: {e}")
+    ai_client = None
+    HAS_CLIENT = False
 
 # Keep legacy imports for fallback
 try:
@@ -105,8 +105,8 @@ def _create_explanation_output(
 
 def label_workloads_with_llm(
     workloads: Union[list, "pd.DataFrame"],
-    model: str = "google/gemini-2.0-flash-001",
-    client: OpenRouterClient = None,
+    model: str = "qwen3:8b",
+    client = None,
 ) -> Tuple[List[int], Dict[str, Any]]:
     """
     Uses LLM API to decide workload labels with explanations.
@@ -121,11 +121,11 @@ def label_workloads_with_llm(
     """
     global REQUEST_COUNTER, TOKEN_TOTALS
 
-    logger.info("Starting workload analysis for migration decision using OpenRouter")
+    logger.info("Starting workload analysis for migration decision using AI client")
 
     # Dependency validation - early return if not available
-    if not HAS_OPENROUTER or not openrouter_client:
-        logger.error("OpenRouter client not available, skipping this cycle")
+    if not HAS_CLIENT or not ai_client:
+        logger.error("AI client not available, skipping this cycle")
         return [], {}
 
     # Data preparation
@@ -140,16 +140,16 @@ def label_workloads_with_llm(
 
     try:
         config = load_config()
-        model = config.get("ai", {}).get("selected_model", "google/gemini-2.0-flash-001")
+        model = config.get("ai", {}).get("selected_model", "qwen3:8b")
 
         model_config = config.get("ai", {}).get("default_config", {})
         system_prompt = build_system_prompt_from_config()
         generation_config = model_config.get("generation_config", {})
 
-        logger.info(f"CONFIG: Using OpenRouter model: {model}")
+        logger.info(f"CONFIG: Using model: {model}")
         logger.info(f"CONFIG: Using generation config: {generation_config}")
 
-        text_response = openrouter_client.chat(
+        text_response = ai_client.chat(
             model=model,
             system_prompt=system_prompt,
             user_prompt=user_prompt,
@@ -158,7 +158,7 @@ def label_workloads_with_llm(
         )
 
         REQUEST_COUNTER += 1
-        logger.info(f"OpenRouter API request count: {REQUEST_COUNTER}")
+        logger.info(f"AI API request count: {REQUEST_COUNTER}")
 
         # Parse and validate response
         response_data = _extract_json_from_response(text_response)
@@ -348,12 +348,12 @@ def label_workloads(
     
     # Determine provider
     if provider is None:
-        provider = agent_config.get("provider", "openrouter")
+        provider = agent_config.get("provider", "ollama")
     
     provider = provider.lower()
 
     try:
-        model = cfg.get("ai", {}).get("selected_model", "google/gemini-2.0-flash-001")
+        model = cfg.get("ai", {}).get("selected_model", "qwen3:8b")
         generation_config = agent_config.get("generation_config", {})
 
         logger.info(f"CONFIG: Using agent mode: {mode}")
@@ -372,7 +372,7 @@ def label_workloads(
             cluster_info = []
             logger.warning("No cluster_info provided to label_workloads, using empty list")
         labels, explanations = label_workloads_multiagent(workloads, cluster_info, interval_duration)
-    elif provider in {"gemini", "google", "openrouter"}:
+    elif provider in {"gemini", "google", "openrouter", "ollama"}:
         labels, explanations = label_workloads_with_llm(workloads)
     else:
         logger.warning(f"Unknown provider '{provider}'. skipping this cycle.")

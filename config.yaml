@@ -3,7 +3,7 @@ data:
 
 ai:
   mode: multi_agent                 # Agent mode: 'single_agent' or 'multi_agent'
-  selected_model: x-ai/grok-4-fast  # Selected model to be used 
+  selected_model: qwen3:8b          # Modelo local servido pelo Ollama
   scheduler_interval: 300           # Number of seconds between scheduler runs
   timestamp_lookback_seconds: 600   # Number of seconds to look back for metrics
   workloads_shard_size: 200         # DEPRECIATED
@@ -12,7 +12,7 @@ ai:
   # Single Agent Configuration
   single_agent:
     selected_prompt: single_agent_v1
-    provider: openrouter
+    provider: ollama
     generation_config:
       temperature: 0.1
       max_output_tokens: 18000
@@ -20,7 +20,7 @@ ai:
   # Multi-Agent Configuration
   multi_agent:
     selected_prompt: multi_agent
-    provider: openrouter
+    provider: ollama
     generation_config:
       temperature: 0.1
       max_output_tokens: 18000
@@ -38,33 +38,55 @@ ai:
 
   # Legacy default_config for backward compatibility
   default_config:
-    provider: openrouter
+    provider: ollama
     generation_config:
       temperature: 0.1
       max_output_tokens: 18000
 
   models:
-    gemini:
-      model_name: google/gemini-2.0-flash-001
-      provider: google
+    qwen3:8b:
+      model_name: qwen3:8b
+      provider: ollama
+      ollama_config:
+        num_ctx: 8192          # Tamanho do contexto em tokens
+        num_thread: 8          # Número de threads de CPU
       generation_config:
         temperature: 0.1
         max_output_tokens: 6000
-    nemotron:
-      model_name: nvidia/nemotron-nano-9b-v2
-      provider: nvidia
+    llama3.1:8b:
+      model_name: llama3.1:8b
+      provider: ollama
+      ollama_config:
+        num_ctx: 8192
+        num_thread: 8
+      generation_config:
+        temperature: 0.1
+        max_output_tokens: 6000
+    gemma3:4b:
+      model_name: gemma3:4b
+      provider: ollama
+      ollama_config:
+        num_ctx: 8192
+        num_thread: 8
+      generation_config:
+        temperature: 0.1
+        max_output_tokens: 6000
+    # Modelos remotos (OpenRouter) mantidos para referência
+    gemini:
+      model_name: google/gemini-2.0-flash-001
+      provider: openrouter
       generation_config:
         temperature: 0.1
         max_output_tokens: 6000
     claude:
       model_name: anthropic/claude-3.5-sonnet
-      provider: anthropic
+      provider: openrouter
       generation_config:
         temperature: 0.1
         max_output_tokens: 6000
     gpt-4o:
       model_name: openai/gpt-4o
-      provider: openai
+      provider: openrouter
       generation_config:
         temperature: 0.1
         max_output_tokens: 6000

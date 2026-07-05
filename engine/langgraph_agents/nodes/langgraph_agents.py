@@ -10,7 +10,7 @@ from engine.util import load_config, get_logger
 from openai import OpenAI
 from engine.ai_config import get_prompt
 from engine.util import load_config, log_token_usage
-from engine.client import OpenRouterClient
+from engine.client import get_client
 from langsmith import traceable
 from langchain_google_genai import ChatGoogleGenerativeAI
 
@@ -21,14 +21,14 @@ logger = get_logger("langgraph_agents")
 load_dotenv()
 
 
-class OpenRouterInvokeModel:
+class LLMInvokeModel:
     """
     Lightweight wrapper exposing a LangChain-like `.invoke(input)` interface,
-    backed by our OpenRouterClient (OpenAI compatible).
+    backed by our AI Client (OpenAI compatible — works with Ollama, OpenRouter, etc.).
     """
 
     def __init__(
-        self, client: OpenRouterClient, model_name: str, system_prompt: str, **gen_cfg
+        self, client, model_name: str, system_prompt: str, **gen_cfg
     ):
         self._client = client
         self._model_name = model_name
@@ -52,35 +52,27 @@ class OpenRouterInvokeModel:
 def get_llm():
     """Initialize and return a model wrapper with `.invoke` and its config."""
     try:
-        client = OpenRouterClient()
+        client = get_client()
         config = load_config()
-        selected_model = config["ai"].get("selected_model", "gemini")
+        selected_model = config["ai"].get("selected_model", "qwen3:8b")
         model_cfg = config["ai"]["models"].get(selected_model, {})
         if model_cfg is None:
             raise ValueError(f"Model '{selected_model}' not found in configuration.")
 
-        # Map internal model names to OpenRouter model names
-        model_mapping = {
-            "gemini": "google/gemini-2.0-flash-001",
-            "gpt-4": "openai/gpt-4",
-            "gpt-3.5-turbo": "openai/gpt-3.5-turbo",
-            "llama": "meta-llama/llama-3.1-8b-instruct",
-        }
-
-        model_name = model_mapping.get(selected_model, "google/gemini-2.0-flash-001")
+        model_name = selected_model
         # Work on a mutable copy to avoid accidental global mutation
         generation_config = dict(model_cfg.get("generation_config", {}))
 
         # Prefer config-provided system prompt if available, else fall back to default
         system_prompt = generation_config.get("system_prompt", "You are an expert Kubernetes workload migration advisor. Analyze the provided workloads and make migration decisions.")
 
-        model = OpenRouterInvokeModel(
+        model = LLMInvokeModel(
             client, model_name, system_prompt, **generation_config
         )
         return model
     except Exception as e:
-        logger.error(f"Failed to initialize OpenRouter client/model: {e}")
-        raise ValueError(f"Failed to initialize OpenRouter client/model: {e}")
+        logger.error(f"Failed to initialize AI client/model: {e}")
+        raise ValueError(f"Failed to initialize AI client/model: {e}")
 
 
 model = get_llm()
@@ -130,21 +122,21 @@ def _parse_llm_response(response: str, expected_length: int) -> List[int]:
 
 
 def _invoke_model(prompt: str) -> str:
-    """Centraliza chamada ao modelo OpenRouter para ter consistência"""
+    """Centraliza chamada ao modelo AI para ter consistência"""
     try:
         # Use the LangChain-like interface with `.invoke`
         response_text = model.invoke(prompt)
 
         # Token accounting (estimate) for observability
-        token_counts = log_token_usage(prompt, response_text, model_type="openrouter")
+        token_counts = log_token_usage(prompt, response_text, model_type="llm")
         logger.info(
             f"Token usage (estimate): input={token_counts['input_tokens']}, output={token_counts['output_tokens']}, total={token_counts['total_tokens']}"
         )
 
-        logger.debug(f"OpenRouter response: {response_text}")
+        logger.debug(f"LLM response: {response_text}")
         return response_text
     except Exception as e:
-        logger.error(f"Error calling OpenRouter: {e}")
+        logger.error(f"Error calling LLM: {e}")
         raise
 
 

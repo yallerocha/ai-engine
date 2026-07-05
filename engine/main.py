@@ -185,7 +185,7 @@ def analyze_workloads(workloads, config, cluster_info=None, interval_duration=No
         Tuple containing (DataFrame with results, explanations dictionary)
     """
     provider = (
-        config.get("ai", {}).get("default_config", {}).get("provider", "openrouter")
+        config.get("ai", {}).get("default_config", {}).get("provider", "ollama")
     )
 
     logger.info(

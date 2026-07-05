@@ -10,23 +10,23 @@ from engine.ai_config import (
 from engine.util import load_config, get_logger
 from langsmith import traceable
 
-from engine.client import OpenRouterClient
+from engine.client import get_client
 
 logger = get_logger("langgraph_agents")
 
 load_dotenv()
 
 
-class OpenRouterInvokeModel:
+class LLMInvokeModel:
     """
     Lightweight wrapper exposing a LangChain-like `.invoke(input)` interface,
-    backed by our OpenRouterClient (OpenAI compatible).
+    backed by our AI Client (OpenAI compatible — works with Ollama, OpenRouter, etc.).
     """
 
     def __init__(
-        self, client: OpenRouterClient, model_name: str, system_prompt: str, **gen_cfg
+        self, client, model_name: str, system_prompt: str, **gen_cfg
     ):
-        self._client: OpenRouterClient = client
+        self._client = client
         self._model_name: str = model_name
         self._system_prompt: str = system_prompt
         # Normalize generation config keys to OpenAI chat params
@@ -49,9 +49,9 @@ class OpenRouterInvokeModel:
 def get_llm():
     """Initialize and return a model wrapper with `.invoke` and its config."""
     try:
-        client = OpenRouterClient()
+        client = get_client()
         config = load_config()
-        selected_model = config["ai"].get("selected_model", "gemini")
+        selected_model = config["ai"].get("selected_model", "qwen3:8b")
         model_cfg = config["ai"]["default_config"]
 
         if model_cfg is None:
@@ -67,13 +67,13 @@ def get_llm():
         generation_config.pop("system_prompt", None)
         generation_config.pop("rules", None)
 
-        model = OpenRouterInvokeModel(
+        model = LLMInvokeModel(
             client, model_name, system_prompt, **generation_config
         )
         return model
     except Exception as e:
-        logger.error(f"Failed to initialize OpenRouter client/model: {e}")
-        raise ValueError(f"Failed to initialize OpenRouter client/model: {e}")
+        logger.error(f"Failed to initialize AI client/model: {e}")
+        raise ValueError(f"Failed to initialize AI client/model: {e}")
 
 
 model = get_llm()
