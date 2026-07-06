@@ -45,6 +45,7 @@ class LLMInvokeModel:
             model=self._model_name,
             system_prompt=self._system_prompt,
             user_prompt=user_prompt,
+            response_format={"type": "json_object"},
             **self._gen_cfg,
         )
 

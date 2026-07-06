@@ -153,6 +153,7 @@ def label_workloads_with_llm(
             model=model,
             system_prompt=system_prompt,
             user_prompt=user_prompt,
+            response_format={"type": "json_object"},
             temperature=generation_config.get("temperature", 0.1),
             max_tokens=generation_config.get("max_output_tokens", 8000),
         )

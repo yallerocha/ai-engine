@@ -345,7 +345,10 @@ def save_and_log_explanations(
         kind = row.get("kind")
         destination_cluster = row.get("label", 0)
 
-        
+        # Guard against NaN (happens when LLM returns empty labels list)
+        if pd.isna(destination_cluster):
+            logger.warning(f"Skipping workload {wid}: no valid label (LLM may have failed)")
+            destination_cluster = 0  # default: keep in private cluster
 
         destination_cluster = int(destination_cluster)
 
