@@ -223,6 +223,10 @@ class OllamaClient(Client):
         # Ensure no trailing slash before appending /v1
         base_url = f"{ollama_host.rstrip('/')}/v1"
 
+        # Local CPU inference can be very slow, so we set a high timeout (30 minutes)
+        if "timeout" not in kwargs:
+            kwargs["timeout"] = 1800.0
+
         # Ollama doesn't require a real API key, but the openai SDK demands one
         super().__init__(
             api_key="ollama",  # dummy key — Ollama ignores it

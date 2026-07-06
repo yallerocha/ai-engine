@@ -3,7 +3,7 @@ data:
 
 ai:
   mode: multi_agent                 # Agent mode: 'single_agent' or 'multi_agent'
-  selected_model: qwen3:8b          # Modelo local servido pelo Ollama
+  selected_model: tinyllama          # Modelo local servido pelo Ollama
   scheduler_interval: 300           # Number of seconds between scheduler runs
   timestamp_lookback_seconds: 600   # Number of seconds to look back for metrics
   workloads_shard_size: 200         # DEPRECIATED
@@ -53,6 +53,15 @@ ai:
       generation_config:
         temperature: 0.1
         max_output_tokens: 6000
+    tinyllama:
+      model_name: tinyllama
+      provider: ollama
+      ollama_config:
+        num_ctx: 2048
+        num_thread: 20
+      generation_config:
+        temperature: 0.1
+        max_output_tokens: 2048
     llama3.1:8b:
       model_name: llama3.1:8b
       provider: ollama
