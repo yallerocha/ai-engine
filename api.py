@@ -25,6 +25,7 @@ import aiohttp
 import json
 import schedule
 import threading
+import pandas as pd
 
 
 # Global state variables to control the recommendation loop
@@ -161,7 +162,14 @@ def _build_workload_recommendations(result_df, explanations, workloads):
     for idx, row in result_df.iterrows():
         wid = row.get("workload_id")
         kind = row.get("kind")
-        label = int(row.get("label", 0))
+
+        # Guard against NaN (happens when the LLM returns an empty labels list).
+        # The "label" key exists but is NaN, so the get() default never fires.
+        raw_label = row.get("label", 0)
+        if pd.isna(raw_label):
+            logger.warning(f"Skipping workload {wid}: no valid label (LLM may have failed)")
+            continue
+        label = int(raw_label)
 
         origin_label = origin_by_id.get(wid, "private")
         origin_cluster = 0 if origin_label == "private" else 1

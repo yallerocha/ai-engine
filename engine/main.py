@@ -205,10 +205,15 @@ def analyze_workloads(workloads, config, cluster_info=None, interval_duration=No
     result = df[["workload_id", "kind"]].copy()
     
     if not result.empty:
-        label_series = pd.Series(labels)
-        
-        numeric_labels = pd.to_numeric(label_series, errors='coerce')
-        
+        # Align labels to result's index. When the LLM fails, `labels` is empty
+        # (or shorter than result); reindexing fills the missing rows with NaN,
+        # which we then coerce to -1. Assigning the raw series first and filling
+        # afterwards is required — filling before assignment leaves the real rows
+        # NaN because pandas aligns by index on assignment.
+        label_series = pd.Series(labels, index=result.index[: len(labels)])
+
+        numeric_labels = pd.to_numeric(label_series.reindex(result.index), errors='coerce')
+
         result["label"] = numeric_labels.fillna(-1).astype(int)
         
     else:

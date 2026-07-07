@@ -42,8 +42,13 @@ def _normalize_workloads_to_dataframe(
     return pd.DataFrame(workloads) if isinstance(workloads, list) else workloads
 
 
-def _extract_json_from_response(text_response: str) -> Dict[str, Any]:
+def _extract_json_from_response(text_response) -> Dict[str, Any]:
     """Extract and parse JSON from model response."""
+    # The client already parses to a dict when response_format={"type": "json_object"}
+    # (see OllamaClient.chat); in that case there is nothing left to extract.
+    if isinstance(text_response, dict):
+        return text_response
+
     json_match = re.search(r"\{[\s\S]*\}", text_response)
     if not json_match:
         raise ValueError("No JSON object found in model response")
