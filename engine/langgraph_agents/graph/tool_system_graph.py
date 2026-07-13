@@ -21,7 +21,14 @@ class MigrationStateToolsGraph(TypedDict):
     interval_duration: str
     decisions: List[int]
     explanations: Dict
-    pending_tool_result: Dict
+    # Tool node outputs — must be declared here or LangGraph drops the
+    # updates and they never reach the recommendations node.
+    pending_by_workload: Dict
+    pending_by_cluster: Dict
+    cluster_capacity: Dict
+    workload_capacity: Dict
+    workload_pricing: Dict
+    infra_pricing: Dict
 
 
 # -----------------------
@@ -158,7 +165,7 @@ def cluster_pricing_node(state: dict) -> dict:
     interval_duration = state.get("interval_duration", "30s")
     
     if not workloads:
-        return {"infra_princing": {"error": "no workloads provided"}}
+        return {"infra_pricing": {"error": "no workloads provided"}}
 
     result = infra_pricing.invoke({
         "data": {
@@ -169,7 +176,7 @@ def cluster_pricing_node(state: dict) -> dict:
             }
         }
     })
-    return {"infra_princing": result}
+    return {"infra_pricing": result}
 
 # -----------------------
 # Graph Creation

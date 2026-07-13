@@ -7,6 +7,7 @@ from .ai_config import get_model_config, get_prompt, PROMPTS, build_system_promp
 from .util import get_logger, load_config, log_token_usage
 
 from .langgraph_agents.graph.tool_system_graph import create_tool_system_migration_graph
+from .langgraph_agents.graph.vote_system_graph import create_vote_system_migration_graph
 from .client import OpenRouterClient, OllamaClient, get_client
 
 logger = get_logger("agents")
@@ -288,7 +289,7 @@ def label_workloads_multiagent(
     return labels, final_explanations
 
 
-def label_workloads_multiagent_votes(workloads, provider="langgraph"):
+def label_workloads_multiagent_votes(workloads, cluster_info=None):
     """
     Label workloads using a multi-agent with voting system.
     """
@@ -297,6 +298,7 @@ def label_workloads_multiagent_votes(workloads, provider="langgraph"):
     # let the graph/nodes produce them as output so they don't show up in input traces.
     state = {
         "workloads": df.to_dict(orient="records"),
+        "cluster_info": cluster_info or [],
         "cpu_votes": [],
         "mem_votes": [],
         "pending_votes": [],
@@ -304,7 +306,7 @@ def label_workloads_multiagent_votes(workloads, provider="langgraph"):
         "explanations": {},
     }
 
-    graph = create_migration_graph()
+    graph = create_vote_system_migration_graph()
 
     thread_id = str(uuid.uuid4())
 
@@ -378,6 +380,8 @@ def label_workloads(
             cluster_info = []
             logger.warning("No cluster_info provided to label_workloads, using empty list")
         labels, explanations = label_workloads_multiagent(workloads, cluster_info, interval_duration)
+    elif mode == "multi_agent_votes":
+        labels, explanations = label_workloads_multiagent_votes(workloads, cluster_info)
     elif provider in {"gemini", "google", "openrouter", "ollama"}:
         labels, explanations = label_workloads_with_llm(workloads)
     else:

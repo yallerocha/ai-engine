@@ -69,6 +69,34 @@ Respond with JSON:
 Workloads: {workloads_json}
 """,
     },
+    "label_workloads_tools": {
+        "version": "1.0",
+        "output_schema": WorkloadLabelOutput,
+        "template": """You are a Kubernetes orchestrator. For each workload, decide if it should run in the 'private' cluster (0) or 'public' cluster (1).
+Rules:
+- If private is overloaded or workload needs high resources, prefer public (1).
+- If workload is in public and private has capacity, allow migrating back to private (0).
+- Use percent_pending, the cluster state and the analysis results below to guide decisions.
+
+Respond with JSON:
+{{
+  "decisions": [0, 1, ...],
+  "explanations": [
+    "Short explanation for workload 1",
+    "Short explanation for workload 2",
+    ...
+  ]
+}}
+
+Workloads: {workloads_json}
+
+Clusters: {clusters_json}
+
+Pending pods per workload: {pending_json}
+
+Analysis results (capacity, pending and pricing tools): {analysis_json}
+""",
+    },
     "cpu_checker": {
         "version": "1.0",
         "template": """You are a CPU usage specialist for Kubernetes clusters.
@@ -76,6 +104,7 @@ Workloads: {workloads_json}
 Your task is to analyze each workload and decide whether it should migrate to the public cluster (1) or stay in the private cluster (0), based **only on CPU usage**.
 
 Guidelines:
+- Use the cluster state below to assess the CPU load of the cluster each workload currently runs on.
 - If the workload is in a cluster where CPU usage is high (above 80%), suggest migration (1).
 - Otherwise, recommend staying (0).
 - Ignore memory and pending pods.
@@ -84,6 +113,8 @@ Respond with a JSON list of 0s and 1s only.
 Example: [0, 1, 1, 0]
 
 Workloads: {workloads_json}
+
+Clusters: {clusters_json}
 """,
     },
     "mem_checker": {
@@ -93,6 +124,7 @@ Workloads: {workloads_json}
 Your task is to analyze each workload and decide whether it should migrate to the public cluster (1) or stay in the private cluster (0), based **only on memory usage**.
 
 Guidelines:
+- Use the cluster state below to assess the memory load of the cluster each workload currently runs on.
 - If the workload demands high memory and the current cluster is overloaded, suggest migration (1).
 - Otherwise, recommend staying (0).
 - Ignore CPU and pending pods.
@@ -101,6 +133,8 @@ Respond with a JSON list of 0s and 1s only.
 Example: [1, 0, 1, 0]
 
 Workloads: {workloads_json}
+
+Clusters: {clusters_json}
 """,
     },
     "pending_checker": {
@@ -112,6 +146,7 @@ Your task is to analyze each workload and decide whether it should migrate to th
 
 Guidelines:
 - If the workload has 50% or more of the pods pending, suggest migration (1).
+- The cluster state below shows pending pods per cluster; use it as supporting context.
 - Otherwise, recommend staying (0).
 - Ignore CPU and memory.
 
@@ -119,23 +154,24 @@ Respond with a JSON list of 0s and 1s only.
 Example: [0, 1, 1, 0]
 
 Workloads: {workloads_json}
+
+Clusters: {clusters_json}
 """,
     },
     "decision": {
         "version": "1.0",
         "output_schema": WorkloadLabelOutput,
-        "template": """You are a pending pod specialist in kubernetes.
+        "template": """You are the final decision judge for Kubernetes workload migration.
 
-Your task is decided by the lists of votes received in the format: JSON list containing 
-only 0s and 1s where (1) indicates to migrate to the public cluster or 0 indicates to 
-remain in the private cluster; by the 'pending', 'cpu' and 'memory' nodes. Considering 
-that the pending votes must outnumber the other nodes, you must decide whether the 
-workload should migrate to the public or remain in the private.
-
+You receive the votes of specialist agents (cpu, mem, pending) as JSON lists of 0s and 1s,
+where 1 means migrate to the public cluster and 0 means remain in the private cluster,
+along with the weight of each agent. For each workload, weigh the agents' votes according
+to their weights and decide 1 (migrate) only when the weighted support for migration
+exceeds half of the total weight; otherwise decide 0.
 
 Respond with a JSON list of 0s and 1s only.
 Example: [0, 1, 1, 0]
-Votes: {workload_json}
+Votes and weights: {workload_json}
 """,
     },
 }

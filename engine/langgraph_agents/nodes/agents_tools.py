@@ -90,30 +90,48 @@ def recommendationsNode(state: Dict[str, Any]) -> Dict[str, Any]:
     workloads = state.get("workloads", [])
     clusters = state.get("cluster_info", [])
 
-    pending_percentage_result_all_timestamps = state.get("pending_percentage", {})
+    # Tool nodes key their results by the timestamps present in the input data;
+    # the graph feeds them under "latest" (see tool_system_graph.py).
+    pending_all_timestamps = state.get("pending_by_workload", {}) or {}
 
-    valid_timestamps = [
-        key for key in pending_percentage_result_all_timestamps.keys() if key.isdigit()
-    ]
-    if valid_timestamps:
-        latest_timestamp = max(valid_timestamps, key=int)
-        pending_percentage_result_latest = pending_percentage_result_all_timestamps.get(
-            latest_timestamp, {}
-        )
+    if "latest" in pending_all_timestamps:
+        pending_latest = pending_all_timestamps["latest"]
     else:
-        pending_percentage_result_latest = {}
+        valid_timestamps = [
+            key for key in pending_all_timestamps.keys() if str(key).isdigit()
+        ]
+        pending_latest = (
+            pending_all_timestamps.get(max(valid_timestamps, key=int), {})
+            if valid_timestamps
+            else {}
+        )
 
     for w in workloads:
         workload_id = w.get("workload_id")
-        w["percent_pending"] = pending_percentage_result_latest.get(workload_id, "0%")
+        w["percent_pending"] = pending_latest.get(
+            workload_id, w.get("percent_pending", "0%")
+        )
+
+    analysis_results = {
+        key: state.get(key)
+        for key in (
+            "cluster_capacity",
+            "pending_by_cluster",
+            "workload_capacity",
+            "workload_pricing",
+            "infra_pricing",
+        )
+        if state.get(key)
+    }
 
     prompt_data = {
         "workloads_json": json.dumps(workloads, indent=2),
         "clusters_json": json.dumps(clusters, indent=2),
-        "pending_json": json.dumps(pending_percentage_result_all_timestamps, indent=2),
+        "pending_json": json.dumps(pending_all_timestamps, indent=2),
+        "analysis_json": json.dumps(analysis_results, indent=2),
     }
 
-    prompt = get_prompt("label_workloads", **prompt_data)
+    prompt = get_prompt("label_workloads_tools", **prompt_data)
     resp = model.invoke(prompt)
 
 

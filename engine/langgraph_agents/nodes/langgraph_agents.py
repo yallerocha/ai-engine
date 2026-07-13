@@ -144,89 +144,94 @@ def _invoke_model(prompt: str) -> str:
 # -----------------------
 # Langraph agents
 # -----------------------
-@traceable(name="cpu_checker")
-def cpu_checker(
-    workloads: Union[list, "pd.DataFrame"],
-) -> List[int]:
-    """Check CPU usage of workloads and return migration votes.
-    Args:
-        workloads (Union[list, pd.DataFrame]): List or DataFrame of workload items.
-    Returns:
-        List[int]: List of votes (0 or 1) for each workload.
-    """
+def _checker_prompt(prompt_key: str, workloads, cluster_info=None) -> tuple[str, int]:
+    """Build a checker prompt with workloads and cluster state; returns (prompt, n)."""
     if isinstance(workloads, list):
         workloads = pd.DataFrame(workloads)
     workloads_list = workloads.to_dict(orient="records")
     prompt = get_prompt(
-        "cpu_checker", workloads_json=json.dumps(workloads_list, indent=2)
+        prompt_key,
+        workloads_json=json.dumps(workloads_list, indent=2),
+        clusters_json=json.dumps(cluster_info or [], indent=2),
     )
+    return prompt, len(workloads_list)
+
+
+@traceable(name="cpu_checker")
+def cpu_checker(
+    workloads: Union[list, "pd.DataFrame"],
+    cluster_info: List[dict] | None = None,
+) -> List[int]:
+    """Check CPU usage of workloads and return migration votes.
+    Args:
+        workloads (Union[list, pd.DataFrame]): List or DataFrame of workload items.
+        cluster_info (List[dict], optional): Current state of each cluster.
+    Returns:
+        List[int]: List of votes (0 or 1) for each workload.
+    """
+    prompt, n = _checker_prompt("cpu_checker", workloads, cluster_info)
     text = _invoke_model(prompt)
-    return _parse_llm_response(text, len(workloads_list))
+    return _parse_llm_response(text, n)
 
 
 @traceable(name="mem_checker")
 def mem_checker(
     workloads: Union[list, "pd.DataFrame"],
+    cluster_info: List[dict] | None = None,
 ) -> List[int]:
     """Check Memory usage of workloads and return migration votes.
 
     Args:
         workloads (Union[list, pd.DataFrame]): List or DataFrame of workload items.
+        cluster_info (List[dict], optional): Current state of each cluster.
 
     Returns:
         List[int]: List of votes (0 or 1) for each workload.
     """
-
-    if isinstance(workloads, list):
-        workloads = pd.DataFrame(workloads)
-    workloads_list = workloads.to_dict(orient="records")
-    prompt = get_prompt(
-        "mem_checker", workloads_json=json.dumps(workloads_list, indent=2)
-    )
+    prompt, n = _checker_prompt("mem_checker", workloads, cluster_info)
     text = _invoke_model(prompt)
-    return _parse_llm_response(text, len(workloads_list))
+    return _parse_llm_response(text, n)
 
 
 @traceable(name="pending_checker")
 def pending_checker(
     workloads: Union[list, "pd.DataFrame"],
+    cluster_info: List[dict] | None = None,
 ) -> List[int]:
     """Check Pending status of workloads and return migration votes.
 
     Args:
         workloads (Union[list, pd.DataFrame]): List or DataFrame of workload items.
+        cluster_info (List[dict], optional): Current state of each cluster.
 
     Returns:
         List[int]: List of votes (0 or 1) for each workload.
     """
-    if isinstance(workloads, list):
-        workloads = pd.DataFrame(workloads)
-    workloads_list = workloads.to_dict(orient="records")
-    prompt = get_prompt(
-        "pending_checker", workloads_json=json.dumps(workloads_list, indent=2)
-    )
+    prompt, n = _checker_prompt("pending_checker", workloads, cluster_info)
     text = _invoke_model(prompt)
-    return _parse_llm_response(text, len(workloads_list))
+    return _parse_llm_response(text, n)
 
 
 @traceable(name="decision_agent")
 def decision_agent(
-    cpu_votes: List[int], mem_votes: List[int], pending_votes: List[int]
+    votes: Dict[str, List[int]],
+    weights: Dict[str, float],
+    expected_length: int,
 ) -> List[int]:
-    """Make final migration decisions based on votes from CPU, Memory, and Pending agents.
+    """Make final migration decisions based on the checkers' votes and weights.
 
     Args:
-        cpu_votes (List[int]): Votes from CPU checker.
-        mem_votes (List[int]): Votes from Memory checker.
-        pending_votes (List[int]): Votes from Pending checker.
+        votes (Dict[str, List[int]]): Votes per active checker (cpu/mem/pending).
+        weights (Dict[str, float]): Weight of each active checker.
+        expected_length (int): Number of workloads (and expected decisions).
 
     Returns:
         List[int]: Final migration decisions (0 or 1) for each workload.
     """
-    votes = {"cpu": cpu_votes, "mem": mem_votes, "pending": pending_votes}
-    prompt = get_prompt("decision", workload_json=json.dumps(votes, indent=2))
+    payload = {"votes": votes, "weights": weights}
+    prompt = get_prompt("decision", workload_json=json.dumps(payload, indent=2))
     text = _invoke_model(prompt)
-    return _parse_llm_response(text, len(pending_votes))
+    return _parse_llm_response(text, expected_length)
 
 
 @traceable(name="explainer_agent")
